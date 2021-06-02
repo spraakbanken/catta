@@ -1,0 +1,57 @@
+#!/usr/bin/perl
+
+use Catta;
+use feature 'say';
+$VERBOSE=1;
+
+# In this example, we run a simple author identification
+# test on two authors, using word frequencies.
+
+# We'll use the standard data from LB.
+# Since they are in the same folder as this file,
+# we set the current working directory to this one.
+here;
+
+# Specify the classification target, that is,
+# which property we're trying to identify.
+$TARGET='author';
+
+# Choose a set of profiles.
+# You can put any number of files or folders here.
+@profiles=(
+"profiles/lb_word_15/Bergman, Hjalmar/Amourer",
+"profiles/lb_word_15/Bergman, Hjalmar/Clownen Jac",
+"profiles/lb_word_15/Rydberg, Viktor/Den siste athenaren",
+);
+
+# Next, we need to choose which features to analyse
+# – in this case, which word frequencies.
+# We can pick words manually, but for now, we'll
+# generate the list of features based on which words
+# are the most common in the data.
+makefeats @profiles;
+# This only needs to be done once, if we're
+# reusing the same features. You can also edit the
+# file (feats_word.txt) and choose features manually.
+
+# Get the list of features from the feature file.
+# We'll use 10 features, and the feature type is 'word'.
+getfeats 10, 'word';
+
+# Load the feature values from the profiles.
+loadprof @profiles;
+
+# For each author, we pick a random profile to act as training data.
+trainbyrand;
+
+# Now we have everything needed to run the test.
+acctest;
+
+# This should print out the accuracy for each author,
+# and the mean and total accuracy.
+# Mean is the mean of the different authors,
+# total is accuracy across all authors.
+# In this case we have five profiles for each author,
+# so they are the same.
+# If all goes well, you should have 100% accuracy here,
+# so you'll see just a 1 for each.

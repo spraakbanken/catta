@@ -1,0 +1,54 @@
+#!/usr/bin/perl
+
+use Catta;
+use feature 'say';
+$VERBOSE=1;
+here;
+
+# In this second example, let's make the program a little more flexible.
+# Instead of choosing the profiles here, we'll let the program
+# take them as input.
+
+# When you run this example, you should make sure there are
+# at least three profiles for each author.
+
+$TARGET='author';
+
+# Instead of setting the type of features here,
+# we can detect it from the profiles.
+# We should only choose profiles with the same feature type
+# – one of 'word', 'pos', and 'cgram', in the standard data.
+getfeattype @ARGV;
+makefeats(@ARGV);
+
+# Now we only have to set the number of features.
+getfeats 10;
+loadprof(@ARGV);
+
+# Instead of choosing training data at random,
+# we can pick the first profile for each author,
+# and let that be the training data.
+trainbyindex(0);
+
+# Let's say this time we're only interested in the total accuracy.
+# We can get that from the function, and use as we like.
+$acc0=acctest;
+
+# If you want to pass the value on to some other program or file,
+# you might want to print out only the value,
+# which could be done like so:
+## say acctest;
+
+# For comparison, we can run the test again,
+# with a different training set.
+trainbyindex(1);
+$acc1=acctest;
+
+say "The accuracy was $acc0 the first time, and $acc1 the second time.";
+
+# If you want to try this example on some of the standard data,
+# but you're not sure which authors have enough files,
+# you can filter them with the enoughfiles() function.
+# Instead of loadprof(@ARGV), you can try
+# loadprof(enoughfiles(3,foldersin(@ARGV)));
+# and then give for example the whole lb_word_13 folder as input.

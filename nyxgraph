@@ -1,0 +1,315 @@
+#!/usr/bin/perl
+
+use feature(say);
+use utf8;
+use Encode qw(encode decode);
+$|=1;
+
+$quarter=0;
+for('marginleft','marginright','margintop','marginbottom','xmin','ymin','xmax','ymax','xlog','ylog','xlabstep','ylabstep','xgridstep','ygridstep','dotsize','linesize','grid1size','grid2size','labsize','textsize','textx','texty','textdy','conn','exlim','exlimlow','shape')
+{$props{$_}=1}
+
+for $infile(@ARGV){
+    unless($infile=~/^(.*)\.txt$/){die "would like text file as input, got $infile"}
+    @lines=linesfrom($infile);
+    $outfile="$1.svg";
+    if($lines[0]=~/^quarter/){shift @lines; $quarter=1}
+    else{$quarter=0}
+    pre();
+    while(1){if(@lines){line(shift @lines)}else{last}}
+    post();
+}
+
+sub line{
+    $_=$_[0];
+	unless($_){return}
+    if(/^([\d\.eE-]*)\s+([\d\.eE-]*)$/){
+        makepoint($1,$2);
+    }
+    elsif(/^setup$/){setup()}
+    elsif(/^\#/){}
+    elsif(/^load\s+(.*)$/){
+        $f1=$1;
+        if($f1=~/^\//){$f=$f1}else{$f="$path/$f1"}
+        @lines=(linesfrom($f),@lines)
+    }
+    elsif(/^echo\s+(.*)$/){say $1}
+    elsif(/^col\s+(.*)$/){makecol($1)}
+    elsif(/^text\s+(.*)$/){maketext($1)}
+    elsif(/^textcont\s+(.*)$/){maketextcont($1)}
+    elsif(/^line\s+([\d\.-]*)\s*([\d\.-]*)\s*([\d\.-]*)\s*([\d\.-]*)\s*$/){drawline($1,$2,$3,$4)}
+    elsif(/^newconn$/){
+		$newconn=1;
+		unless($conn){$conn=1}
+	}
+    elsif(/^(\w*) ?= ?([\d\.-]*)$/){
+		if($1 eq 'drawsize'){$linesize=$2;$dotsize=$2;}
+        elsif($props{$1}){$$1=$2}
+        else{say "Unknown property: $1"; exit}
+    }
+    else{say "What do you mean by \"$_\"?";exit}
+}
+
+sub pre{
+    
+    if($quarter){$physwidth=192,$physheight=128}
+    else{$physwidth=384,$physheight=256}
+    $marginleft=30;
+    $marginright=20;
+    $margintop=5;
+    $marginbottom=12;
+    $xlog=0;
+    $ylog=0;
+    $xmin=10;
+    $ymin=10;
+    $xmax=100;
+    $ymax=100;
+    $xlabstep=10;
+    $ylabstep=10;
+    $xgridstep=5;
+    $ygridstep=5;
+    $dotsize=2;
+	$linesize=2;
+    $grid1size=0.5;
+    $grid2size=0.5;
+    $grid1col='#C0C0C0';
+    $grid2col='#E0E0E0';
+    $axissize=1;
+    $arrowsize=4;
+    $textx=50;
+    $texty=28;
+    $textdy=12;
+    $textdx=60;
+    $conn=0;
+    $col='black';
+    $exlim=1000000;
+    $exlimlow=0.001;
+    $labsize=8;
+    $textsize=10;
+    $labfontface= '"Lucida Sans Unicode"';
+	$verbose=0;
+    
+    if($quarter){
+        $marginleft=12;
+        $marginright=10;
+        $margintop=5;
+        $marginbottom=10;
+		$linesize=1;
+		$dotsize=1;
+    }
+    
+
+	if($quarter){$main="<svg xmlns='http://www.w3.org/2000/svg' width='192' height='128'>\n"}
+	else{$main="<svg xmlns='http://www.w3.org/2000/svg' width='384' height='256'>\n"}
+    $last="</svg>";
+}
+
+sub setup{
+    makegrid();
+    makeaxes();
+    makelabels();
+}
+
+sub makeaxes{
+    $main.="<line x1='".physx($xmin)."' y1='".(physy($ymin)+$axissize/2)."' x2='".physx($xmin)."' y2='".physy($ymax)."' stroke-width='".$axissize."' stroke='black'/>\n";
+    $main.="<line x1='".(physx($xmin)-$axissize/2)."' y1='".physy($ymin)."' x2='".physx($xmax)."' y2='".physy($ymin)."' stroke-width='".$axissize."' stroke='black'/>\n";
+
+    @poly=($physwidth-$marginright,$physheight-$marginbottom,$physwidth-$marginright-$arrowsize,$physheight-$marginbottom+$arrowsize,$physwidth-$marginright+$arrowsize,$physheight-$marginbottom,$physwidth-$marginright-$arrowsize,$physheight-$marginbottom-$arrowsize);
+    $main.="<polygon points='$poly[0],$poly[1] $poly[2],$poly[3] $poly[4],$poly[5] $poly[6],$poly[7]'/>\n";
+    @poly=($marginleft,$margintop,
+    $marginleft+$arrowsize,$margintop+$arrowsize,
+    $marginleft,$margintop-$arrowsize,
+    $marginleft-$arrowsize,$margintop+$arrowsize);
+    $main.="<polygon points='$poly[0],$poly[1] $poly[2],$poly[3] $poly[4],$poly[5] $poly[6],$poly[7]'/>\n";
+    
+}
+
+sub makegrid{
+    $oldcol=$col;
+    $oldsize=$linesize;
+    $linesize=$grid2size;
+    $col=$grid2col;
+    
+    if($xlog){
+        for $i(0..int(lg($xmax)-lg($xmin))){for $j(2..9){
+            drawline($xmin*10**$i*$j,$ymin,$xmin*10**$i*$j,$ymax);
+        }}
+    }else{
+        for(1..int(($xmax-$xmin)/$xgridstep)){
+            if($_*$xgridstep/$xlabstep-int($_*$xgridstep/$xlabstep)<0.1){next}
+            drawline($xmin+$_*$xgridstep,$ymin,$xmin+$_*$xgridstep,$ymax);
+        }
+    }
+    if($ylog){
+        for $i(0..int(lg($ymax)-lg($ymin))){for $j(2..9){
+            drawline($xmin,$ymin*10**$i*$j,$xmax,$ymin*10**$i*$j);
+        }}
+    }else{
+        for(1..int(($ymax-$ymin)/$ygridstep)){
+            if($_*$ygridstep/$ylabstep-int($_*$ygridstep/$ylabstep)<0.1){next}
+            drawline($xmin,$ymin+$_*$ygridstep,$xmax,$ymin+$_*$ygridstep);
+        }
+    }
+
+    $linesize=$grid1size;
+    $col=$grid1col;
+   
+    if($xlog){
+        for(1..int(lg($xmax)-lg($xmin)+0.4)){
+            drawline($xmin*10**$_,$ymin,$xmin*10**$_,$ymax);
+        }
+    }else{
+        for(1..int(($xmax-$xmin)/$xlabstep)){
+            drawline($xmin+$_*$xlabstep,$ymin,$xmin+$_*$xlabstep,$ymax);
+        }
+    }
+    
+    if($ylog){
+        for(1..int(lg($ymax)-lg($ymin)+0.4)){
+            drawline($xmin,$ymin*10**$_,$xmax,$ymin*10**$_);
+        }
+        
+    }else{
+        for(1..int(($ymax-$ymin)/$ylabstep)){
+            drawline($xmin,$ymin+$_*$ylabstep,$xmax,$ymin+$_*$ylabstep);
+        }
+    }
+    
+    $col=$oldcol;
+    $linesize=$oldsize;
+}
+
+
+sub makelabels{
+    
+    if($xlog){
+        for(0..int(lg($xmax)-lg($xmin)+0.4)){
+            $main.="<text text-anchor='middle' x='".physx($xmin*10**$_)."' y='".($physheight-0.5)."' style='font-family: $labfontface' font-size='$labsize'>\n";
+            $main.=ex($xmin*10**$_)."\n";
+            $main.="</text>\n";
+        }
+    }else{
+        for(0..int(($xmax-$xmin)/$xlabstep)){
+            $main.="<text text-anchor='middle' x='".physx($xmin+$_*$xlabstep)."' y='".($physheight-0.5)."' style='font-family: $labfontface' font-size='$labsize'>\n";
+            $main.=ex($xmin+$_*$xlabstep)."\n";
+            $main.="</text>\n";
+        }
+    }
+    
+    if($ylog){
+        for(0..int(lg($ymax)-lg($ymin)+0.4)){
+            $main.="<text text-anchor='end' x='".($marginleft-5)."' y='".(physy($ymin*10**$_)+4)."' font-family='$labfontface' font-size='$labsize'>\n";
+            $main.=ex($ymin*10**$_)."\n";
+            $main.="</text>\n";
+        }
+        
+    }else{
+        for(0..int(($ymax-$ymin)/$ylabstep)){
+            $main.="<text text-anchor='end' x='".($marginleft-5)."' y='".(physy($ymin+$_*$ylabstep)+4)."' font-family='$labfontface' font-size='$labsize'>\n";
+            $main.=ex($ymin+$_*$ylabstep)."\n";
+            $main.="</text>\n";
+        }
+    }
+    
+}
+
+
+sub maketext{
+    $main.="<text x='$textx' y='$texty' font-family='courier' font-size='$textsize' fill='$col'>\n";
+    $main.="$_[0]\n";
+    $main.="</text>\n";
+    $texty+=$textdy;
+    $moretextx=$textx+$textdx;
+}
+
+sub maketextcont{
+    $moretexty=$texty-$textdy;
+    $main.="<text x='$moretextx' y='$moretexty' font-family='courier' font-size='$textsize' fill='$col'>\n";
+    $main.="$_[0]\n";
+    $main.="</text>\n";
+    $moretextx+=$textdx;
+}
+
+sub post{
+	open FILE, ">:encoding(UTF-8)",$outfile or die "could not open $outfile";
+	print FILE $main.$last;
+	close FILE;
+}
+
+sub makepoint{
+	if($_[0]<$xmin or $_[0]>$xmax or $_[1]<$ymin or $_[1]>$ymax){if($verbose){say "point outside: $_[0], $_[1]"} return}
+    
+    if($conn){
+        if($newconn){
+            $newconn=0;
+        }
+        else{
+            $main.="<line stroke-linecap='round' x1='".physx($lastx)."' y1='".physy($lasty)."' x2='".physx($_[0])."' y2='".physy($_[1])."' stroke-width='$linesize' stroke='$col'/>\n";
+        }
+		$lastx=$_[0]; $lasty=$_[1];
+    }
+	if($conn==0 or $conn==2){
+		my $size=$dotsize/2;
+		if($shape==1){
+			$main.="<polygon points='".(physx($_[0])+$size).",".physy($_[1])." ".physx($_[0]).",".(physy($_[1])-$size)." ".(physx($_[0])-$size).",".physy($_[1])." ".physx($_[0]).",".(physy($_[1])+$size)."' style='fill: $col'/>\n";
+		}else{
+    		$main.="<circle cx='".physx($_[0])."' cy='".physy($_[1])."' r='$size' style='fill: $col'/>\n";
+		}
+    }
+}
+
+sub makecol{
+    $_=$_[0];
+    if(/^a$/){$col="\#00AAFF"}
+    elsif(/^b$/){$col="\#80C000"}
+    elsif(/^c$/){$col="\#FF5500"}
+    elsif(/^d$/){$col="\#8000FF"}
+    elsif(/^a2$/){$col="\#0000FF"}
+    elsif(/^c2$/){$col="\#A02000"}
+    elsif(/^g1$/){$col=$grid1col}
+    elsif(/^g2$/){$col=$grid2col}
+    else{$col=$_}
+}
+
+
+sub drawline{
+    $main.="<line x1='".physx(shift)."' y1='".physy(shift)."' x2='".physx(shift)."' y2='".physy(shift)."' stroke-width='".$linesize."' stroke='".$col."'/>\n";
+}
+
+sub physx{
+    my $x=$_[0];
+    if($xlog){return $marginleft+(lg($x)-lg($xmin))*($physwidth-$marginleft-$marginright)/(lg($xmax)-lg($xmin))}
+    else{return $marginleft+($x-$xmin)*($physwidth-$marginleft-$marginright)/($xmax-$xmin)}
+}
+
+sub physy{
+    my $y=$_[0];
+    if($ylog){return $physheight-$marginbottom-(lg($y)-lg($ymin))*($physheight-$margintop-$marginbottom)/(lg($ymax)-lg($ymin))}
+    else{return $physheight-$marginbottom-($y-$ymin)*($physheight-$margintop-$marginbottom)/($ymax-$ymin)}
+}
+
+sub lg{
+    unless($_[0]){return "-inf"}
+    return log($_[0])/log(10);
+}
+
+sub ex{
+    if(($_[0]<$exlim and abs($_[0])>$exlimlow) or $_[0] eq 0){return $_[0]}
+    if($_[0]>1){
+        $expo=int(lg($_[0])+0.0001);
+    }else{
+        $expo=int(lg($_[0])-0.0001);
+    }
+    $mant=$_[0]/10**$expo;
+    return "${mant}ᴇ$expo";
+}
+
+sub linesfrom{
+	my @lines=();
+	my ($package, $filename, $line) = caller;
+	if($_[0]){$_=$_[0]}
+	open file, "<:encoding(UTF-8)",$_ or die "could not open $_ from line $line";
+	for(<file>){chomp;push @lines,$_}
+	close file;
+	return @lines;
+}

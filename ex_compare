@@ -1,0 +1,62 @@
+#!/usr/bin/perl
+
+use Catta;
+use feature 'say';
+$VERBOSE=1;
+here;
+
+# In this example, we dig into the basics and
+# compare a few profiles explicitly.
+
+# We will use data on word frequencies.
+# We choose four profiles to begin with.
+@profiles=(
+"profiles/lb_word_15/Bergman, Hjalmar/Amourer/0.txt",
+"profiles/lb_word_15/Bergman, Hjalmar/Amourer/1.txt",
+"profiles/lb_word_15/Bergman, Hjalmar/Clownen Jac/0.txt",
+"profiles/lb_word_15/Rydberg, Viktor/Den siste athenaren/0.txt",
+);
+
+# Next, we need a list of which features
+# (in this case, which word frequencies)
+# we're going to use. We can make a list manually, or
+# generate it based on the most common words in the data.
+# For a speedy example, we'll base the feature list on this data:
+makefeats @profiles;
+# but in case we want to compare with other data later,
+# it might be better to use features chosen from
+# the whole corpus:
+## makefeats('profiles/lb_word_15');
+# Since the feature list is stored in a file,
+# you only need to run this once if you repeat the experiment.
+
+# We load the feature list that we've just made.
+# We use 20 features,
+# and they are of the type 'word'.
+getfeats 20, 'word';
+
+# Now we can load the profiles. This has to be done
+# after we set the maximum number of features,
+# so we don't have to load the entire profile data.
+loadprof @profiles;
+# These are now our profiles 0, 1, 2 and 3.
+
+# We can choose two profiles to compare. Let's try the last two.
+say "Comparing the last two profiles:";
+comp 2,3;
+
+# That should give us some number, representing how
+# different these two samples are. But it's not very useful
+# on it's own. Let's make several different comparisons.
+# If we give comp() several indices, it compares the first
+# to each of the others.
+say "Comparing the first profile to the rest:";
+comp 0,1,2,3;
+
+# Now we will probably see that sample 1, which is from
+# the same book as sample 0, is the most similar
+# (that is, it has the lowest number);
+# sample 2, which is by the same author, is also
+# somewhat similar; and sample 3, which is by a
+# different author, is the least similar.
+

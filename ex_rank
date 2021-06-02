@@ -1,0 +1,115 @@
+#!/usr/bin/perl
+
+use Catta;
+use feature 'say';
+$VERBOSE=1;
+here;
+
+# In this example, we will see how in the case of two classes,
+# we can do a ranking instead of a simple classification.
+
+# In ex_classify, we saw a couple of simple examples of classification.
+# (You might want to look at that example before this one.)
+# Let's start here by classifying a few profiles by gender.
+
+makefeats('profiles/lb_word_15_bygender/train_m','profiles/lb_word_15_bygender/train_f');
+getfeats 10, 'word';
+loadprof('profiles/lb_word_15_bygender/train_m','profiles/lb_word_15_bygender/train_f',1,'train');
+loadprof('profiles/lb_word_15_bygender/test_m','profiles/lb_word_15_bygender/test_f',1,'test');
+# Note how we added the 'train' and 'test' traits while loading.
+$TARGET='gender';
+
+# We might want to know how many there are in each category.
+@ftrain=twho('gender:f','train');
+@mtrain=twho('gender:m','train');
+@ftest=twho('gender:f','test');
+@mtest=twho('gender:m','test');
+say "Training data:";
+say @ftrain." female and ".@mtrain." male profiles";
+say "Test data:";
+say @ftest." female and ".@mtest." male profiles";
+
+# Then we pick five of each to classify.
+say "\nClassifying using 10 features";
+classify(@ftest[0,10,20,30,40],@mtest[0,10,20,30,40]);
+say '';
+
+# Hopefully you got 7/10 right.
+
+# Since we have only two classes, we can take a different
+# approach. Instead of looking for the nearest match, we can
+# rank the profiles by "how female" they seem.
+# We will do that by finding words which are used more by women
+# than by men, and then checking for each test profile
+# how much it uses those words.
+
+# First, we need a new feature set, based on the most
+# overrepresented words instead of the most common overall.
+# In this case, we'll treat female as the "positive" trait.
+$POSI='gender:f';
+
+# makefeatsover() takes one folder of "positive" profiles
+# and then one or more folders of "negative" profiles.
+makefeatsover('profiles/lb_word_15_bygender/train_f','profiles/lb_word_15_bygender/train_m');
+# If we didn't have them in separate folders, we could
+# have used makefeatsovert(), which instead filters them
+# using the $POSI trait.
+
+# Since we have new features, we also need to load them again.
+getfeats 20, 'word';
+# And we need to reset and load the profiles.
+# This time we only need to load the test profiles.
+clearprof;
+loadprof('profiles/lb_word_15_bygender/test_m','profiles/lb_word_15_bygender/test_f');
+# We also need to specify the ranking method, even though
+# there's only one option at the moment.
+$METHOD='rank_wsum';
+
+# Now we could just run rank(), but that would print
+# an awfully long list. Let's pick a subset like before.
+@ftest=twho('gender:f');
+@mtest=twho('gender:m');
+rank(@ftest[100,120,140,160,180],@mtest[100,110,120,130,140]);
+
+# Now we can see exactly "how female" each writer is
+# (more female = lower number).
+# So in a real test setting, we could use this to say
+# something more than just which is the most likely class
+# – we can give an estimate of how sure the guess is.
+
+# Can we use this to get an actual probability?
+# And can we produce a nice little graph at the same time?
+# Yes to both!
+
+# Because no two values have the exact same ranking, we have to use some
+# kind of smoothing. We could use simple intervals or a moving average, but
+# rather than settling for something so mundane, we will use Gaussian blur.
+# The blurring factor should be adjusted so we get enough detail without
+# too much noise, but since the ranking values we saw differed by a
+# couple hundred, we'll pick something a bit less than that.
+$GAUSS_SD=20;
+
+# We also want to take into account the apriori probability;
+# that is, given no other information, we have a 50% probability that
+# a profile is from a female author.
+$RANK_APRI=0.5;
+# This is optional – if we don't use it, we will see lower probabilities,
+# since the data contains less than 50% female profiles.
+
+# Since we've already set $POSI and $METHOD, we're ready to go.
+rankgraph;
+# Specific profiles can be given as arguments, but we're using all of them.
+
+# Now we have exported the smoothed data to Nyxgraph format.
+# If you want to fiddle with the data itself, you'll find the points in
+# @gaussx and @gaussy.
+# But let's finish up by running Nyxgraph and creating the graph.
+system(cwd()."/nyxgraph ".cwd()."/rank_graph.txt");
+# That should give you a picture in rank_graph.svg.
+
+# We see that the graph goes a bit up and down, but this is just
+# a coincidence – we also see that there are very few points in the ends.
+# This graph shows that if a profile gets a ranking around 200,
+# it's about 70% likely to be female, while at 300, it's about 40%.
+# With a higher smoothing factor, you'll get something that looks
+# more like a line, but might overestimate the flatness.

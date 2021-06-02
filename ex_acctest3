@@ -1,0 +1,76 @@
+#!/usr/bin/perl
+
+use Catta;
+use feature 'say';
+$VERBOSE=1;
+here;
+
+# Here we will see a few more variants on the basic classification test.
+
+# We start by generating the feature list, in case you
+# haven't already done that.
+makefeats("profiles/lb_word_13");
+
+# To begin with, we'll do author identification again.
+say "Author identification";
+$TARGET='author';
+
+# This time, we set the type and number of features as global parameters:
+$FEAT_TYPE='word';
+$FEAT_MAX=20;
+getfeats;
+
+# With that done, we can load the profiles.
+# We start with the entire lb_word_13.
+loadprof "profiles/lb_word_13";
+
+# That must be a lot of profiles! How many are they?
+say "Loaded $PROFS profiles from lb_word_13.";
+
+# As training data, we'll use the first profile for each author,
+# since some of them might only have one.
+trainbyindex 0;
+
+# We run the accuracy test first with only 5 features.
+$FEAT_COUNT=5;
+say "With 5 feats, accuracy was ".acctest;
+
+# Then we can compare what happens with more features.
+$FEAT_COUNT=20;
+# Note that we can't use more than 20, since that's
+# how many we have loaded.
+say "With 20 feats, accuracy was ".acctest;
+
+# Hopefully, that improved the accuracy. How does that compare
+# with other datasets? In lb_word_13, we have 2^13 words per sample.
+# Let's try lb_word_15 instead, where we have four times as much per profile.
+# We don't need to redo makefeats(), since the original data is the same.
+
+# Out with the old data...
+clearprof;
+# ...and in with the new.
+loadprof "profiles/lb_word_15";
+# Since the same base data is now divided in larger samples,
+# there are fewer profiles.
+say "Loaded $PROFS profiles from lb_word_15.";
+
+# Same experiment again:
+trainbyindex 0;
+$FEAT_COUNT=5;
+say "With 5 feats, accuracy was ".acctest;
+$FEAT_COUNT=20;
+say "With 20 feats, accuracy was ".acctest;
+# You should see that we get better accuracy,
+# now that we have a bigger sample size.
+
+# We can try instead identifying the specific book.
+say "Book identification";
+$TARGET='title';
+
+# We reuse the same data, but of course we need to
+# choose a new training set.
+trainbyindex 0;
+$FEAT_COUNT=5;
+say "With 5 feats, accuracy was ".acctest;
+$FEAT_COUNT=20;
+say "With 20 feats, accuracy was ".acctest;

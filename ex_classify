@@ -1,0 +1,63 @@
+#!/usr/bin/perl
+
+use Catta;
+use feature 'say';
+$VERBOSE=1;
+
+# In this example we do a simple test of classification.
+
+# Working from the main folder, where the executable is.
+here;
+
+# We choose a few profiles from the standard data.
+# Two authors, three books, ten profiles in total.
+@profiles=(
+"profiles/lb_word_15/Bergman, Hjalmar/Amourer",
+"profiles/lb_word_15/Bergman, Hjalmar/Clownen Jac",
+"profiles/lb_word_15/Rydberg, Viktor/Den siste athenaren",
+);
+
+# We create a feature list by taking the most common features
+# from these profiles.
+makefeats @profiles;
+# We could also use the full data to generate the list:
+## makefeats 'profiles/lb_word_15';
+# but that would be a bit slower.
+# The feature list is saved to file, so we need only do this once.
+
+# We extract ten features from the list we just made...
+getfeats 10, 'word';
+
+# ...and load our chosen profiles with those features.
+loadprof @profiles;
+
+# To get an overview of the profiles we're dealing with,
+# we can print out some of their characteristics.
+say "\nThese are the profiles:";
+for(0..$PROFS-1){whois}
+
+# First, let's try identifying the authors.
+say "\nClassifying by author";
+$TARGET='author';
+
+# We need to choose some profiles to use as training data.
+# We'll pick the first profile for each author.
+tset(0,5,'train');
+# That could also be done automatically:
+## trainbyindex 0;
+
+# Now we can classify the rest of them.
+classify(1,2,3,4,6,7,8,9);
+# This should print out a class for each of the profiles.
+
+# Next, we do the same for titles.
+say "\nClassifying by title";
+$TARGET='title';
+
+# Now there are three classes, so we'll need a
+# training profile for each.
+tset(0,2,5,'train');
+classify(1,3,4,6,7,8,9);
+
+# If all goes well, you should see that this simple
+# test gets all the classifications right.
